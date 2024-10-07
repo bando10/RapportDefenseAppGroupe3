@@ -92,12 +92,15 @@ if uploaded_file is not None:
         )
     
     # Concatenate all results into one string variable
-    all_results_agents = "\n\nTexte du rapport :\n".join(str(results_agents))
+    all_results_agents=""
+    for i in range(3):
+        all_results_agents += "\n\nTexte du rapport :\n" + results_agents[i].choices[0].message.content
+    st.write(all_results_agents)
 
     # Generate response for the consensus agent using the OpenAI API
     results_consensus = client.chat.completions.create(
         model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": selected_prompt_consensus + "\n\n" + all_results_agents}],
+        messages=[{"role": "user", "content": selected_prompt_consensus + all_results_agents}],
         stream=True,
     )
 
