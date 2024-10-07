@@ -2,52 +2,105 @@ import streamlit as st
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
+import json
+import graphviz
 
 # Load API_KEY
 load_dotenv()
 openai_api_key = os.getenv("API_KEY")
 
-# Show title and description.
+# Read JSON file containing the prompts
+prompts_agents = []
+prompts_consensus = []
+json_file_path = "./prompts.json"
+try:
+    with open(json_file_path, "r") as json_file:
+        prompts = json.load(json_file)
+        prompts_agents = prompts["agents"]
+        prompts_consensus = prompts["consensus"]
+except:
+    st.write("Failed to load prompts JSON file.")
+
+# Show title and description
 st.title("Résumeur de Rapport")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
-    # Create an OpenAI client.
+st.write("Application de synthèse de rapport de défense par IA générative. Ce système utilise quatre agents basé sur le LLM `GPT-3.5`. Il effectue trois analyses indépendantes puis réalise un consensus entre les trois versions obtenues. Vous pouvez paramétrer le système avec différentes versions de *prompts* pour chaque agent.")
+
+# Create a graphlib graph object
+graph = graphviz.Digraph()
+graph.attr(rankdir='LR')
+graph.attr('node', shape='plaintext')
+graph.node("Rapport (entrée)")
+graph.attr('node', shape='circle')
+graph.edge("Rapport (entrée)", "Agent\nAnalyseur 1")
+graph.edge("Rapport (entrée)", "Agent\nAnalyseur 2")
+graph.edge("Rapport (entrée)", "Agent\nAnalyseur 3")
+graph.edge("Agent\nAnalyseur 1", "Agent\nConsensus")
+graph.edge("Agent\nAnalyseur 2", "Agent\nConsensus")
+graph.edge("Agent\nAnalyseur 3", "Agent\nConsensus")
+graph.attr('node', shape='plaintext')
+graph.edge("Agent\nConsensus", "Résumé (sortie)")
+st.graphviz_chart(graph)
+
+# Create an OpenAI client
 client = OpenAI(api_key=openai_api_key)
 
-# Create a session state variable to store the chat messages. This ensures that the
-# messages persist across reruns.
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# Split into three columns for three selects
+cols = st.columns(3)
+selected_prompts_agents = [None, None, None]
 
-# Display the existing chat messages via `st.chat_message`.
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# Option to select the prompt for each agent
+for i in range(3):
+    with cols[i]:
+        option = st.selectbox(
+            "Agent Analyseur " + str(i + 1),
+            (p["name"] for p in prompts_agents),
+        )
+        for prompt_agent in prompts_agents:
+            if prompt_agent["name"] == option:
+                selected_prompts_agents[i] = prompt_agent["prompt"]
+                break
 
-# Create a chat input field to allow the user to enter a message. This will display
-# automatically at the bottom of the page.
-if prompt := st.chat_input("What is up?"):
+# Option to select the prompt for consensus agent
+selected_prompt_consensus = None
+option = st.selectbox(
+    "Agent Consensus",
+    (p["name"] for p in prompts_consensus),
+)
+for prompt_consensus in prompts_consensus:
+    if prompt_consensus["name"] == option:
+        selected_prompt_consensus = prompt_consensus["prompt"]
+        break
 
-    # Store and display the current prompt.
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# Create a drag and drop zone for loading report files
+uploaded_file = st.file_uploader("Sélectionnez un rapport à analyser", type="TXT")
+
+# Read and store the content of the file into a string variable
+if uploaded_file is not None:
+    report_content = uploaded_file.read().decode("utf-8")
+
+    # Display the report content as the user's message
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(report_content)
 
-    # Generate a response using the OpenAI API.
-    stream = client.chat.completions.create(
+    # Generate responses for each analyzer agents using the OpenAI API
+    results_agents = [None, None, None]
+    for i in range(3):
+        results_agents[i] = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": selected_prompts_agents[i] + "\n\n" + report_content}],
+            stream=False,
+        )
+    
+    # Concatenate all results into one string variable
+    all_results_agents = "\n\nTexte du rapport :\n".join(str(results_agents))
+
+    # Generate response for the consensus agent using the OpenAI API
+    results_consensus = client.chat.completions.create(
         model="gpt-3.5-turbo",
-        messages=[
-            {"role": m["role"], "content": m["content"]}
-            for m in st.session_state.messages
-        ],
+        messages=[{"role": "user", "content": selected_prompt_consensus + "\n\n" + all_results_agents}],
         stream=True,
     )
 
-    # Stream the response to the chat using `st.write_stream`, then store it in 
-    # session state.
+    # Stream the response to the chat using `st.write_stream`
     with st.chat_message("assistant"):
-        response = st.write_stream(stream)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+        response = st.write_stream(results_consensus)
