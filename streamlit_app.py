@@ -19,7 +19,7 @@ try:
         prompts_agents = prompts["agents"]
         prompts_consensus = prompts["consensus"]
 except:
-    st.write("Failed to load prompts JSON file.")
+    st.write("Erreur lors du chargement du fichier contenant les prompts.")
 
 # Show title and description
 st.title("Résumeur de Rapport")
@@ -88,15 +88,21 @@ if uploaded_file is not None:
         results_agents[i] = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": selected_prompts_agents[i] + "\n\n" + report_content}],
-            stream=False,
+            stream=True,
         )
     
-    # Concatenate all results into one string variable
-    all_results_agents=""
+    # Display responses and store their actual result contents
+    cols = st.columns(3)
     for i in range(3):
-        all_results_agents += "\n\nTexte du rapport :\n" + results_agents[i].choices[0].message.content
-    st.write(all_results_agents)
-
+        with cols[i]:
+            with st.chat_message("assistant", avatar=f":material/counter_{i + 1}:"):
+                results_agents[i] = st.write_stream(results_agents[i])
+    
+    # Concatenate all results into one string variable
+    all_results_agents = ""
+    for i in range(3):
+        all_results_agents += f"\n\nRésumé {i + 1} :\n" + results_agents[i]
+    
     # Generate response for the consensus agent using the OpenAI API
     results_consensus = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -106,4 +112,4 @@ if uploaded_file is not None:
 
     # Stream the response to the chat using `st.write_stream`
     with st.chat_message("assistant"):
-        response = st.write_stream(results_consensus)
+        results_consensus = st.write_stream(results_consensus)
