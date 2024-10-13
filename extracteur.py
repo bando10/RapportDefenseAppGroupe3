@@ -24,27 +24,27 @@ except:
     st.write("Erreur lors du chargement du fichier contenant les prompts.")
 
 # Tabs
-tab1, tab2 = st.tabs(["Résumeur", "Extracteur"])
+tab1, tab2 = st.tabs(["📄 Résumeur", "🔍 Extracteur"])
 
 with tab1:
     # Show title and description
-    st.title("Résumeur de rapport")
+    st.title("📄Résumeur de rapport")
     st.write("Application de synthèse de rapport de défense par IA générative. Ce système utilise quatre agents basé sur le LLM `GPT-3.5`. Il effectue trois analyses indépendantes puis réalise un consensus entre les trois versions obtenues. Vous pouvez paramétrer le système avec différentes versions de *prompts* pour chaque agent.")
 
-    # Create a graphlib graph object
+    # Create a graphlib graph object for the workflow
     graph = graphviz.Digraph()
     graph.attr(rankdir='LR')
     graph.attr('node', shape='plaintext')
-    graph.node("Rapport (entrée)")
+    graph.node("📄 Rapport (entrée)")
     graph.attr('node', shape='circle')
-    graph.edge("Rapport (entrée)", "Agent\nAnalyseur 1")
-    graph.edge("Rapport (entrée)", "Agent\nAnalyseur 2")
-    graph.edge("Rapport (entrée)", "Agent\nAnalyseur 3")
-    graph.edge("Agent\nAnalyseur 1", "Agent\nConsensus")
-    graph.edge("Agent\nAnalyseur 2", "Agent\nConsensus")
-    graph.edge("Agent\nAnalyseur 3", "Agent\nConsensus")
+    graph.edge("📄 Rapport (entrée)", "🤖 Agent Analyseur 1")
+    graph.edge("📄 Rapport (entrée)", "🤖 Agent Analyseur 2")
+    graph.edge("📄 Rapport (entrée)", "🤖 Agent Analyseur 3")
+    graph.edge("🤖 Agent Analyseur 1", "🤝 Agent Consensus")
+    graph.edge("🤖 Agent Analyseur 2", "🤝 Agent Consensus")
+    graph.edge("🤖 Agent Analyseur 3", "🤝 Agent Consensus")
     graph.attr('node', shape='plaintext')
-    graph.edge("Agent\nConsensus", "Résumé (sortie)")
+    graph.edge("🤝 Agent Consensus", "📝 Résumé (sortie)")
     st.graphviz_chart(graph)
 
     # Create an OpenAI client
@@ -78,10 +78,12 @@ with tab1:
             break
 
     # Create a drag and drop zone for loading report files
-    uploaded_file = st.file_uploader("Sélectionnez un rapport à analyser", key=1, type="TXT")
+    st.markdown("---")
+    uploaded_file = st.file_uploader("📂 Sélectionnez un rapport à analyser", key=1, type="TXT")
+
 
     # Read and store the content of the file into a string variable
-    if uploaded_file is not None and st.button("C'est parti !"):
+    if uploaded_file is not None and st.button("🚀 Lancer l'analyse"):
         report_content = uploaded_file.read().decode("utf-8")
 
         # Display the report content as the user's message
@@ -89,13 +91,14 @@ with tab1:
             st.markdown(report_content)
 
         # Generate responses for each analyzer agents using the OpenAI API
-        results_agents = [None, None, None]
-        for i in range(3):
-            results_agents[i] = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": selected_prompts_agents[i] + "\n\n" + report_content}],
-                stream=True,
-            )
+        with st.spinner("💡 Analyse en cours..."):
+            results_agents = [None, None, None]
+            for i in range(3):
+                results_agents[i] = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": selected_prompts_agents[i] + "\n\n" + report_content}],
+                    stream=True,
+                )
         
         # Display responses and store their actual result contents
         cols = st.columns(3)
@@ -122,7 +125,7 @@ with tab1:
         
         # Button to download the text file
         st.download_button(
-            label="Télécharger le résumé",
+            label="📥 Télécharger le résumé",
             data=results_consensus,
             file_name="resume_rapport.txt",
             mime="text/plain",
@@ -130,58 +133,55 @@ with tab1:
 
 with tab2:
     # Show title and description
-    st.title("Extracteur d'événements et d'attributs")
+    st.title("🔍 Extracteur d'événements et d'attributs")
     st.write("Application d'extraction d'événements et d'attributs dans un rapport de défense par IA générative. Vous pouvez paramétrer le système avec différentes versions de *prompts*.")
     
     # Create a drag and drop zone for loading report files
-    uploaded_file = st.file_uploader("Sélectionnez un résumé à traiter", key=2, type="TXT")
+    uploaded_file = st.file_uploader("📂 Sélectionnez un résumé à traiter", key=2, type="TXT")
 
     # Read and store the content of the file into a string variable
-    if uploaded_file is not None and st.button("C'est parti !"):
+    if uploaded_file is not None and st.button("🚀 Lancer l'extraction"):
         report_content = uploaded_file.read().decode("utf-8")
 
         # Afficher le contenu du rapport
         with st.expander("Contenu du rapport"):
             st.text(report_content)
 
-        # Extraire les événements à l'aide d'OpenAI
-        prompt_extraction = (
-            f"Extraire les événements et leurs attributs suivants du texte : {report_content}\n"
-            "Veuillez fournir la sortie au format JSON valide avec des guillemets doubles. "
-            "Format JSON attendu : [{\"type\": \"...\", \"lieu\": \"...\", \"date\": \"...\", \"acteur\": \"...\"}]"
-        )
-
-        try:
-            extraction_response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt_extraction}],
-                temperature=0,
+         # Extraire les événements à l'aide d'OpenAI
+        with st.spinner("💡 Extraction en cours..."):
+            prompt_extraction = (
+                f"Extraire les événements et leurs attributs suivants du texte : {report_content}\n"
+                "Veuillez fournir la sortie au format JSON valide avec des guillemets doubles. "
+                "Format JSON attendu : [{\"type\": \"...\", \"lieu\": \"...\", \"date\": \"...\", \"acteur\": \"...\"}]"
             )
-            extracted_events_json = extraction_response.choices[0].message.content
-            extracted_events = json.loads(extracted_events_json)
+            try:
+                extraction_response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt_extraction}],
+                    temperature=0,
+                )
+                extracted_events_json = extraction_response.choices[0].message.content
+                extracted_events = json.loads(extracted_events_json)
 
- 
+                # Partie sophistiquée pour afficher les événements extraits dans un tableau
+                st.markdown("### Événements extraits")
 
-            # Partie sophistiquée pour afficher les événements extraits dans un tableau
-            st.write("### Événements extraits :")
+                # Créer une liste de dictionnaires à partir des événements extraits
+                events_data = [
+                    {
+                        "Type d'événement": event["type"],
+                        "Lieu": event["lieu"],
+                        "Date": event["date"],
+                        "Acteur": event["acteur"]
+                    }
+                    for event in extracted_events
+                ]
 
-            # Créer une liste de dictionnaires à partir des événements extraits
-            events_data = [
-                {
-                    "Type d'événement": event["type"],
-                    "Lieu": event["lieu"],
-                    "Date": event["date"],
-                    "Acteur": event["acteur"]
-                }
-                for event in extracted_events
-            ]
+                # Convertir les événements en dataframe pour un affichage tabulaire
+                events_df = pd.DataFrame(events_data)
 
-            # Convertir les événements en dataframe pour un affichage tabulaire
-            events_df = pd.DataFrame(events_data)
-            
-            # Afficher le tableau avec les événements
-            st.table(events_df)
+                # Afficher le tableau avec les événements
+                st.table(events_df)
 
-
-        except Exception as e:
-            st.error(f"Erreur lors de l'extraction  : {str(e)}")
+            except Exception as e:
+                st.error(f"Erreur lors de l'extraction : {str(e)}")
