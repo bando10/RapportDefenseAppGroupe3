@@ -149,11 +149,20 @@ with tab2:
 
          # Extraire les événements à l'aide d'OpenAI
         with st.spinner("💡 Extraction en cours..."):
-            prompt_extraction = (
-                f"Extraire les événements et leurs attributs suivants du texte : {report_content}\n"
-                "Veuillez fournir la sortie au format JSON valide avec des guillemets doubles. "
-                "Format JSON attendu : [{\"type\": \"...\", \"lieu\": \"...\", \"date\": \"...\", \"acteur\": \"...\"}]"
-            )
+            # prompt_extraction = f"Extraire les événements et leurs attributs suivants du texte : {report_content}\n" +\
+            #     "Veuillez fournir la sortie au format JSON valide avec des guillemets doubles. Quand un attribut est vide, met 'None'." +\
+            #     "Format JSON attendu : [{\"type\": \"...\", \"lieu\": \"...\", \"date\": \"...\", \"acteur\": \"...\"}]"
+            
+            # prompt_extraction = f"Extraire les événements et leurs attributs suivants du texte : {report_content}\n" +\
+            #     "Veuillez fournir la sortie au format JSON valide avec des guillemets doubles. Quand un attribut est vide, mettez 'None'.\n" +\
+            #     "Ne modifiez pas les mots ou phrases du texte extrait, conservez-les exactement comme ils apparaissent dans le texte.\n" +\
+            #     "Format JSON attendu : [{\"type\": \"...\", \"lieu\": \"...\", \"date\": \"...\", \"acteur\": \"...\"}]"
+
+            prompt_extraction = f"Extraire les événements et leurs attributs suivants du texte sans modifier les mots ou phrases extraits : {report_content}\n" +\
+                "Veuillez fournir la sortie au format JSON valide avec des guillemets doubles. Quand un attribut est vide, met 'None'.\n" +\
+                "Format JSON attendu : [{\"type_evenement\": \"...\", \"lieu\": \"...\", \"date\": \"...\", \"acteur\": \"...\"}]\n" +\
+                "Assurez-vous que les extraits dans le JSON soient exactement tels qu'ils apparaissent dans le texte source."
+
             try:
                 extraction_response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -169,7 +178,7 @@ with tab2:
                 # Créer une liste de dictionnaires à partir des événements extraits
                 events_data = [
                     {
-                        "Type d'événement": event["type"],
+                        "Type d'événement": event["type_evenement"],
                         "Lieu": event["lieu"],
                         "Date": event["date"],
                         "Acteur": event["acteur"]
@@ -179,6 +188,62 @@ with tab2:
 
                 # Convertir les événements en dataframe pour un affichage tabulaire
                 events_df = pd.DataFrame(events_data)
+
+                # Fonction pour annoter le texte avec les phrases et les étiquettes
+                def annotate_text(text, annotations):
+                    print(annotations)
+                    annotations_filtered = []
+
+                    # Filtrer les annotations avec des phrases vides ou None
+                    for annotation in annotations:
+                        if annotation[0] is None or annotation[0] == "":
+                            print(f"on a une annotation vide : {annotation[0]}")
+                        else:
+                            annotations_filtered.append(annotation)
+                    
+                    annotations = annotations_filtered
+                    print(annotations)
+
+                    annotated_blocks = []
+                    last_idx = 0
+
+                    # Convertir le texte en minuscules pour la recherche des phrases
+                    lower_text = text.lower()
+
+                    # Trier les annotations par ordre d'apparition dans le texte (en ignorant la casse)
+                    sorted_annotations = sorted(annotations, key=lambda x: lower_text.find(x[0].lower()))
+
+                    for phrase, label in sorted_annotations:
+                        # Convertir la phrase annotée en minuscule pour la recherche
+                        lower_phrase = phrase.lower()
+                        start_idx = lower_text.find(lower_phrase, last_idx)
+                        
+                        if start_idx != -1:
+                            # Ajouter le texte non annoté avant la phrase
+                            if start_idx > last_idx:
+                                annotated_blocks.append(text[last_idx:start_idx])
+                            
+                            # Ajouter la phrase annotée (avec la casse originale)
+                            annotated_blocks.append((phrase, label))
+
+                            # Mettre à jour l'index de fin de la phrase annotée
+                            last_idx = start_idx + len(phrase)
+
+                    # Ajouter le reste du texte non annoté
+                    annotated_blocks.append(text[last_idx:])
+                    
+                    return annotated_blocks
+
+                # Annoter et afficher le texte original
+                with st.chat_message("assistant"):
+                    aa = []
+                    for event in extracted_events:
+                        aa.append((event["type_evenement"], "Événement"))
+                        aa.append((event["lieu"], "Lieu"))
+                        aa.append((event["date"], "Date"))
+                        aa.append((event["acteur"], "Acteur"))
+                    annotated_text_blocks = annotate_text(report_content, aa)
+                    annotated_text(*annotated_text_blocks)
 
                 # Afficher le tableau avec les événements
                 st.table(events_df)
