@@ -1,21 +1,30 @@
-# 💬 Chatbot template
+# TP résumé et extraction d'informations dans les textes par IA
 
-A simple Streamlit app that shows how to build a chatbot using OpenAI's GPT-3.5.
+## Auteurs
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://chatbot-template.streamlit.app/)
+- [Sio Bando](https://github.com/bando10)
+- [Kawthar Dadoua Hadria](https://github.com/kawthar-dad-had)
+- [Pablo Laviron](https://github.com/0lbap)
+- [Amine Miled](https://github.com/Muddinana)
 
-### How to run it on your own machine
+## Installation et lancement
 
-1. Install the requirements
+1. Installez les dépendances
 
-   ```
-   $ python3 -m venv venv
-   $ source venv/bin/activate
-   $ pip install -r requirements.txt
-   ```
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-2. Run the app
+2. Ajoutez votre clé d'API OpenAI
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+```bash
+cat "API_KEY=VotreCléOpenAI" > .env
+```
+
+3. Lancez l'application
+
+```bash
+streamlit run extracteur.py
+```
